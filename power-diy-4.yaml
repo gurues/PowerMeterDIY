@@ -1,0 +1,219 @@
+esphome:
+  name: powermeter-diy-4
+  platform: ESP8266
+  board: d1_mini
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  password: !secret ota_pass
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+   #introduce tu IP fija o comenta las siguientes 4 líneas
+  manual_ip: 
+    static_ip: 192.168.1.141 
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+  
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "powermeter-diy-4"
+    password: !secret captive_porta_pass
+
+captive_portal:
+
+# Configuración I2C
+i2c: 
+  sda: D2 
+  scl: D1
+
+ads1115:
+  - address: 0x48
+    id: ads1115_48
+
+  - address: 0x4A
+    id: ads1115_4A
+
+# Configuración sensores
+
+# Sensor potencia WIFI
+sensor:
+  - platform: wifi_signal
+    name: "PowerMeterDIY_4 WiFi Signal"
+    update_interval: 5min
+
+# Convertidor Analógico / Digital 16 bits
+  - platform: ads1115
+    name: "PowerMeterDIY_4_1_ADS1115 A0-A1"
+    id: ads_canal1
+    ads1115_id: ads1115_48
+    multiplexer: 'A0_A1'
+    gain: 2.048
+    update_interval: 5s
+  
+  - platform: ads1115
+    name: "PowerMeterDIY_4_2_ADS1115 A2-A3"
+    id: ads_canal2
+    ads1115_id: ads1115_48
+    multiplexer: 'A2_A3'
+    gain: 2.048
+    update_interval: 5s
+    
+  - platform: ads1115
+    name: "PowerMeterDIY_4_3_ADS1115 A0-A1"
+    id: ads_canal3
+    ads1115_id: ads1115_4A
+    multiplexer: 'A0_A1'
+    gain: 2.048
+    update_interval: 5s
+    
+  - platform: ads1115
+    name: "PowerMeterDIY_4_4_ADS1115 A2-A3"
+    id: ads_canal4
+    ads1115_id: ads1115_4A
+    multiplexer: 'A2_A3'
+    gain: 2.048
+    update_interval: 5s
+
+  # Pinzas Amperimétricas, sensores no invasivos medición de corriente
+  - platform: ct_clamp
+    sensor: ads_canal1
+    name: "PowerMeterDIY_4_1_Consumo_Canal_1"
+    id: consumo_canal1
+    update_interval: 10s
+    filters:
+      - calibrate_linear:
+          # Valor inical
+          - 0.0 -> 0.0
+          # Calibración de pinza
+          # Relación pinza 1V/30A  --> Carga conocidad = 10A  -> valor log canal 1 = 0.340
+          - 0.340 -> 10.0
+      - min:
+          window_size: 10
+          send_every: 5
+          send_first_at: 3
+
+  - platform: ct_clamp
+    sensor: ads_canal2
+    name: "PowerMeterDIY_4_2_Consumo_Canal_2"
+    id: consumo_canal2
+    update_interval: 10s
+    filters:
+      - calibrate_linear:
+          # Valor inical
+          - 0.0 -> 0.0
+          # Calibración de pinza
+          # Relación pinza 1V/30A  --> Carga conocidad = 10A  -> valor log canal 1 = 0.320
+          - 0.320 -> 10.0
+      - min:
+          window_size: 10
+          send_every: 5
+          send_first_at: 3
+
+  - platform: ct_clamp
+    sensor: ads_canal3
+    name: "PowerMeterDIY_4_3_Consumo_Canal_3"
+    id: consumo_canal3
+    update_interval: 10s
+    filters:
+      - calibrate_linear:
+        # Valor inical
+          - 0.0 -> 0.0
+          # Calibración de pinza
+          # Relación pinza 1V/30A  --> Carga conocidad = 10A  -> valor log canal 1 = 0.310
+          - 0.310 -> 10.0
+      - min:
+          window_size: 10
+          send_every: 5
+          send_first_at: 3
+
+  - platform: ct_clamp
+    sensor: ads_canal4
+    name: "PowerMeter1DIY_4_4_Consumo_Canal_4"
+    id: consumo_canal4
+    update_interval: 10s
+    filters:
+      - calibrate_linear:
+          # Valor inical
+          - 0.0 -> 0.0
+          # Calibración de pinza
+          # Relación pinza 1V/30A  --> Carga conocidad = 10A  -> valor log canal 1 = 0.340
+          - 0.340 -> 10.0
+      - min:
+          window_size: 10
+          send_every: 5
+          send_first_at: 3
+
+  # Tensión entrada Casa obtenida del Shelly EM
+  # Si no dispones de la Tensión de entrada como entidad en HA, elimina este sensor
+  - platform: homeassistant
+    id: voltaje
+    entity_id: sensor.voltaje_entrada_casa
+    internal: true
+
+  # Sensor de potencia de 4 canales. 
+  # Si no dispones de la Tensión de entrada como entidad en HA, susittuye
+  #  (id(voltaje).state) por 230
+  - platform: template
+    id: PowerMeter1DIY_4_1_Power_Canal_1
+    name: "PowerMeter1DIY_4_1_Power_Canal_1"
+    lambda: return (id(consumo_canal1).state) * (id(voltaje).state);
+    unit_of_measurement: 'W'
+    update_interval: 15s
+    filters:
+      - lambda: |-
+            float new_value = 0.0;
+            float min_value = 15;
+            if (x > min_value)
+              new_value = x; 
+            return new_value;
+
+  - platform: template
+    id: PowerMeter1DIY_4_1_Power_Canal_2
+    name: "PowerMeter1DIY_4_2_Power_Canal_2"
+    lambda: return (id(consumo_canal2).state) * (id(voltaje).state);
+    unit_of_measurement: 'W'
+    update_interval: 15s
+    filters:
+      - lambda: |-
+            float new_value = 0.0;
+            float min_value = 15;
+            if (x > min_value)
+              new_value = x; 
+            return new_value;
+
+  - platform: template
+    id: PowerMeter1DIY_4_1_Power_Canal_3
+    name: "PowerMeter1DIY_4_3_Power_Canal_3"
+    lambda: return (id(consumo_canal3).state) * (id(voltaje).state);
+    unit_of_measurement: 'W'
+    update_interval: 15s
+    filters:
+      - lambda: |-
+            float new_value = 0.0;
+            float min_value = 15;
+            if (x > min_value)
+              new_value = x; 
+            return new_value;
+
+  - platform: template
+    id: PowerMeter1DIY_4_1_Power_Canal_4
+    name: "PowerMeter1DIY_4_4_Power_Canal_4"
+    lambda: return (id(consumo_canal4).state) * (id(voltaje).state);
+    unit_of_measurement: 'W'
+    update_interval: 15s
+    filters:
+      - lambda: |-
+            float new_value = 0.0;
+            float min_value = 15;
+            if (x > min_value)
+              new_value = x; 
+            return new_value;
+
+  
